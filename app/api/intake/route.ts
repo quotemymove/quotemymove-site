@@ -52,3 +52,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err?.message ?? "Invalid JSON" }, { status: 400 });
   }
 }
+import { resend, FROM, ADMIN } from "@/lib/mail";
+import { LeadCustomerEmail } from "@/emails/LeadCustomer";
+import { LeadAdminEmail } from "@/emails/LeadAdmin";
+
+// ... after you have `data.id` and before returning the JSON response:
+try {
+  await resend.emails.send({
+    from: FROM,
+    to: body.email,
+    subject: "We’ve received your details — QuoteMyMove",
+    react: LeadCustomerEmail({ name: body.full_name }),
+  });
+
+  await resend.emails.send({
+    from: FROM,
+    to: ADMIN,
+    subject: `New lead: ${body.full_name} (${data.id})`,
+    react: LeadAdminEmail({ id: data.id, p: insert }),
+  });
+} catch (e) {
+  console.error("Email send failed", e);
+}
