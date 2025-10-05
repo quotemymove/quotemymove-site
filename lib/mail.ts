@@ -1,4 +1,20 @@
+// lib/mail.ts
 import { Resend } from "resend";
-export const resend = new Resend(process.env.RESEND_API_KEY!);
-export const FROM = process.env.FROM_EMAIL || "QuoteMyMove <onboarding@resend.dev";
-export const ADMIN = process.env.ADMIN_EMAIL || "george@quotemymove.com";
+import { render } from "@react-email/render";
+import LeadEmail from "@/emails/LeadEmail"; // your react-email component
+
+export async function sendLeadEmail(lead: any) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("RESEND_API_KEY missing");
+
+  const resend = new Resend(apiKey);
+
+  const html = render(<LeadEmail lead={lead} />);
+
+  await resend.emails.send({
+    from: "QuoteMyMove <noreply@quotemymove.co.uk>",
+    to: ["george@quotemymove.co.uk"],
+    subject: `New lead: ${lead.full_name || "Customer"}`,
+    html,
+  });
+}
