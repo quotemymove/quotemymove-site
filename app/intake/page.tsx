@@ -45,6 +45,12 @@ export default function IntakePage() {
       if (!res.ok) throw new Error((await res.text()) || "Submission failed");
       setState("success");
       form.reset();
+      // Save submission data for Thank You page
+sessionStorage.setItem("qmm:lastSubmission", JSON.stringify(data));
+
+// Redirect to Thank You page
+window.location.href = "/thank-you";
+
     } catch (err: any) {
       setError(err?.message ?? "Something went wrong. Please try again.");
       setState("error");
