@@ -1,34 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+// app/auth/callback/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseRouteClient } from '@/lib/supabase-server';
 
-/**
- * Handles both PKCE (?code=...) and legacy (?token_hash=...).
- * Always sets cookies on the response we return.
- */
-export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const next = url.searchParams.get("next") || "/admin";
-  const response = NextResponse.redirect(new URL(next, url.origin));
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const next = url.searchParams.get('next') || '/admin';
 
-  const supabase = createSupabaseRouteClient(request as any, response);
+  // Exchange the OTP/code for a session and set cookies.
+  const supa = createSupabaseRouteClient(req);
+  const { error } = await supa.auth.exchangeCodeForSession();
 
-  const code = url.searchParams.get("code");
-  const token_hash = url.searchParams.get("token_hash");
-
-  try {
-    if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) throw error;
-    } else if (token_hash) {
-      const { data, error } = await supabase.auth.verifyOtp({ token_hash, type: "magiclink" });
-      if (error || !data?.user) throw error || new Error("No user from token_hash");
-    } else {
-      throw new Error("Missing code/token_hash in callback");
-    }
-  } catch (e) {
-    console.error("Auth callback error:", e);
-    return NextResponse.redirect(new URL("/admin/login", url.origin));
+  if (error) {
+    // Surface a friendly error on the homepage if something goes wrong.
+    const home = new URL('/', req.url);
+    home.searchParams.set('error', error.message);
+    return NextResponse.redirect(home);
   }
 
-  return response;
+  // Redirect to the intended page, now authenticated.
+  return NextResponse.redirect(new URL(next, req.url));
 }

@@ -1,0 +1,10 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "quotemymove.co.uk" }],
+      "destination": "https://www.quotemymove.co.uk/:path*",
+      "permanent": true
+    }
+  ]
+}

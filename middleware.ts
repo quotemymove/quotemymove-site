@@ -1,41 +1,47 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseRouteClient } from '@/lib/supabase-server';
 
-export const config = {
-  // Protect admin/portal/partners and allow callback to run
-  matcher: ["/admin/:path*", "/portal/:path*", "/partners/:path*", "/auth/callback"],
-};
+// Paths that are actual login pages (always allowed even if unauthenticated)
+const LOGIN_PATHS = ['/admin/login', '/portal/login', '/partners/login'];
 
-const PUBLIC_PATHS = [
-  "/admin/login",
-  "/portal/login",
-  "/partners/login",
-  "/auth/callback",
-];
+// Sections that require auth
+const PROTECTED_ROOTS = ['/admin', '/portal', '/partners'];
 
 export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
   const { pathname } = req.nextUrl;
 
-  // Let public pages through (login + callback)
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
-    return NextResponse.next();
+  // allow login pages and the auth callback route without checks
+  if (LOGIN_PATHS.includes(pathname) || pathname.startsWith('/auth/callback')) {
+    return res;
   }
 
-  const res = NextResponse.next();
-  const supa = createSupabaseRouteClient(req as any, res);
+  // does this path need auth?
+  const needsAuth =
+    PROTECTED_ROOTS.some((r) => pathname === r || pathname.startsWith(r + '/'));
+
+  if (!needsAuth) return res;
+
+  // Check the current user via Supabase (route client binds to req cookies)
+  const supa = createSupabaseRouteClient(req);
   const { data: { user } } = await supa.auth.getUser();
 
-  const needsAuth =
-    pathname === "/admin" || pathname.startsWith("/admin/") ||
-    pathname === "/portal" || pathname.startsWith("/portal/") ||
-    pathname === "/partners" || pathname.startsWith("/partners/");
+  if (user) return res;
 
-  if (needsAuth && !user) {
-    const url = new URL("/admin/login", req.url);
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
+  // Not signed in — send to the appropriate login with ?next=
+  const login =
+    pathname.startsWith('/partners') ? '/partners/login' :
+    pathname.startsWith('/portal')   ? '/portal/login'   :
+                                       '/admin/login';
 
-  return res;
+  const url = new URL(login, req.url);
+  url.searchParams.set('next', pathname);
+  return NextResponse.redirect(url);
 }
+
+// Exclude static assets, API, and the auth callback from middleware
+export const config = {
+  matcher: [
+    '/((?!_next|.*\\..*|api|auth/callback).*)',
+  ],
+};
